@@ -107,6 +107,8 @@ class MediaStreamInfo(object):
         self.duration = None
         self.video_width = None
         self.video_height = None
+        self.sample_aspect_ratio = None
+        self.display_aspect_ratio = None
         self.video_fps = None
         self.audio_channels = None
         self.audio_samplerate = None
@@ -149,6 +151,20 @@ class MediaStreamInfo(object):
         elif key == 'sample_rate':
             self.audio_samplerate = self.parse_float(val)
 
+        elif key == 'sample_aspect_ratio':
+            if ':' in val:
+                n, d = val.split(':')
+                n = self.parse_float(n)
+                d = self.parse_float(d)
+                if n > 0.0 and d > 0.0:
+                    self.sample_aspect_ratio = float(n) / float(d)
+        elif key == 'display_aspect_ratio':
+            if ':' in val:
+                n, d = val.split(':')
+                n = self.parse_float(n)
+                d = self.parse_float(d)
+                if n > 0.0 and d > 0.0:
+                    self.display_aspect_ratio = float(n) / float(d)
         if self.type == 'audio':
             if key == 'avg_frame_rate':
                 if '/' in val:
