@@ -135,7 +135,7 @@ class VideoCodec(BaseCodec):
         # If we don't have source info, we don't try to calculate
         # aspect corrections
         if not sw or not sh:
-            return (w, h, None)
+            return w, h, None
 
         # Original aspect ratio
         aspect = (1.0 * sw) / (1.0 * sh)
@@ -143,21 +143,21 @@ class VideoCodec(BaseCodec):
         # If we have only one dimension, we can easily calculate
         # the other to match the source aspect ratio
         if not w and not h:
-            return (w, h, None)
+            return w, h, None
         elif w and not h:
             h = int((1.0 * w) / aspect)
-            return (w, h, None)
+            return w, h, None
         elif h and not w:
             w = int(aspect * h)
-            return (w, h, None)
+            return w, h, None
 
         # If source and target dimensions are actually the same aspect
         # ratio, we've got nothing to do
         if int(aspect * h) == w:
-            return (w, h, None)
+            return w, h, None
 
         if mode == 'stretch':
-            return (w, h, None)
+            return w, h, None
 
         target_aspect = (1.0 * w) / (1.0 * h)
 
@@ -167,12 +167,12 @@ class VideoCodec(BaseCodec):
                 h0 = int(w / aspect)
                 assert h0 > h, (sw, sh, w, h)
                 dh = (h0 - h) / 2
-                return (w, h0, 'crop=%d:%d:0:%d' % (w, h, dh))
+                return w, h0, 'crop=%d:%d:0:%d' % (w, h, dh)
             else:  # source is wider, need to crop left/right
                 w0 = int(h * aspect)
                 assert w0 > w, (sw, sh, w, h)
                 dw = (w0 - w) / 2
-                return (w0, h, 'crop=%d:%d:%d:0' % (w, h, dw))
+                return w0, h, 'crop=%d:%d:%d:0' % (w, h, dw)
 
         if mode == 'pad':
             # target is taller, need to pad top/bottom
@@ -180,12 +180,12 @@ class VideoCodec(BaseCodec):
                 h1 = int(w / aspect)
                 assert h1 < h, (sw, sh, w, h)
                 dh = (h - h1) / 2
-                return (w, h1, 'pad=%d:%d:0:%d' % (w, h, dh)) #FIXED
+                return w, h1, 'pad=%d:%d:0:%d' % (w, h, dh)  # FIXED
             else:  # target is wider, need to pad left/right
                 w1 = int(h * aspect)
                 assert w1 < w, (sw, sh, w, h)
                 dw = (w - w1) / 2
-                return (w1, h, 'pad=%d:%d:%d:0' % (w, h, dw)) #FIXED
+                return w1, h, 'pad=%d:%d:%d:0' % (w, h, dw)  # FIXED
 
         assert False, mode
 
@@ -219,7 +219,6 @@ class VideoCodec(BaseCodec):
 
         sw = None
         sh = None
-        aspect = None
 
         if 'src_width' in safe and 'src_height' in safe:
             sw = safe['src_width']
@@ -227,15 +226,13 @@ class VideoCodec(BaseCodec):
             if not sw or not sh:
                 sw = None
                 sh = None
-            else:
-                aspect = (1.0 * sw) / (1.0 * sh)
 
         mode = 'stretch'
         if 'mode' in safe:
             if safe['mode'] in ['stretch', 'crop', 'pad']:
                 mode = safe['mode']
 
-        ow, oh = w, h # FIXED
+        ow, oh = w, h  # FIXED
         w, h, filters = self._aspect_corrections(sw, sh, w, h, mode)
 
         safe['width'] = w
@@ -255,10 +252,13 @@ class VideoCodec(BaseCodec):
         if 'fps' in safe:
             optlist.extend(['-r', str(safe['fps'])])
         if 'bitrate' in safe:
-            optlist.extend(['-vb', str(safe['bitrate']) + 'k']) # FIXED
+            optlist.extend(['-vb', str(safe['bitrate']) + 'k'])  # FIXED
         if w and h:
-            optlist.extend(['-s', '%dx%d' % (w, h),
-                '-aspect', '%d:%d' % (ow, oh)]) # FIXED
+            optlist.extend(['-s', '%dx%d' % (w, h)])
+
+            if ow and oh:
+                optlist.extend(['-aspect', '%d:%d' % (ow, oh)])
+
         if filters:
             optlist.extend(['-vf', filters])
 
@@ -294,7 +294,7 @@ class AudioCopyCodec(BaseCodec):
     codec_name = 'copy'
 
     def parse_options(self, opt):
-            return ['-acodec', 'copy']
+        return ['-acodec', 'copy']
 
 
 class VideoCopyCodec(BaseCodec):
@@ -304,23 +304,47 @@ class VideoCopyCodec(BaseCodec):
     codec_name = 'copy'
 
     def parse_options(self, opt):
-            return ['-vcodec', 'copy']
+        return ['-vcodec', 'copy']
 
 
 class VorbisCodec(AudioCodec):
     """
     Vorbis audio codec.
+    @see http://ffmpeg.org/trac/ffmpeg/wiki/TheoraVorbisEncodingGuide
     """
     codec_name = 'vorbis'
     ffmpeg_codec_name = 'libvorbis'
+    encoder_options = AudioCodec.encoder_options.copy()
+    encoder_options.update({
+        'quality': int,  # audio quality. Range is 0-10(highest quality)
+        # 3-6 is a good range to try. Default is 3
+    })
+
+    def _codec_specific_produce_ffmpeg_list(self, safe):
+        optlist = []
+        if 'quality' in safe:
+            optlist.extend(['-qscale:a', safe['quality']])
+        return optlist
 
 
 class TheoraCodec(VideoCodec):
     """
     Theora video codec.
+    @see http://ffmpeg.org/trac/ffmpeg/wiki/TheoraVorbisEncodingGuide
     """
     codec_name = 'theora'
     ffmpeg_codec_name = 'libtheora'
+    encoder_options = VideoCodec.encoder_options.copy()
+    encoder_options.update({
+        'quality': int,  # audio quality. Range is 0-10(highest quality)
+        # 5-7 is a good range to try (default is 200k bitrate)
+    })
+
+    def _codec_specific_produce_ffmpeg_list(self, safe):
+        optlist = []
+        if 'quality' in safe:
+            optlist.extend(['-qscale:v', safe['quality']])
+        return optlist
 
 
 class AacCodec(AudioCodec):
@@ -335,21 +359,43 @@ class AacCodec(AudioCodec):
         return self.aac_experimental_enable
 
 
+class FdkAacCodec(AudioCodec):
+    """
+    AAC audio codec.
+    """
+    codec_name = 'libfdk_aac'
+    ffmpeg_codec_name = 'libfdk_aac'
+
+
 class H264Codec(VideoCodec):
     """
     H.264/AVC video codec.
+    @see http://ffmpeg.org/trac/ffmpeg/wiki/x264EncodingGuide
     """
     codec_name = 'h264'
     ffmpeg_codec_name = 'libx264'
-
-    x264_voodoo_recipe_ipod = ("-flags +loop -cmp chroma " +
-        "-partitions +parti4x4+partp8x8+partb8x8 -subq 5 -trellis 1 " +
-        "-refs 1 -coder 0 -me_range 16 -g 300 -keyint_min 25 " +
-        "-sc_threshold 40 -i_qfactor 0.71 -rc_eq 'blurCplx^(1-qComp)' " +
-        "-qcomp 0.6 -qmin 10 -qmax 51 -qdiff 4 -level 30")
+    encoder_options = VideoCodec.encoder_options.copy()
+    encoder_options.update({
+        'preset': str,  # common presets are ultrafast, superfast, veryfast,
+        # faster, fast, medium(default), slow, slower, veryslow
+        'quality': int,  # constant rate factor, range:0(lossless)-51(worst)
+        # default:23, recommended: 18-28
+        # http://mewiki.project357.com/wiki/X264_Settings#profile
+        'profile': str,  # default: not-set, for valid values see above link
+        'tune': str,  # default: not-set, for valid values see above link
+    })
 
     def _codec_specific_produce_ffmpeg_list(self, safe):
-        return self.x264_voodoo_recipe_ipod.split(' ')
+        optlist = []
+        if 'preset' in safe:
+            optlist.extend(['-preset', safe['preset']])
+        if 'quality' in safe:
+            optlist.extend(['-crf', safe['quality']])
+        if 'profile' in safe:
+            optlist.extend(['-profile', safe['profile']])
+        if 'tune' in safe:
+            optlist.extend(['-tune', safe['tune']])
+        return optlist
 
 
 class Mp3Codec(AudioCodec):
@@ -381,7 +427,7 @@ class Vp8Codec(VideoCodec):
     Google VP8 video codec.
     """
     codec_name = 'vp8'
-    ffmpeg_codec_name = 'vp8'
+    ffmpeg_codec_name = 'libvpx'
 
 
 class H263Codec(VideoCodec):
@@ -442,7 +488,8 @@ class Mpeg2Codec(MpegCodec):
 
 
 audio_codec_list = [
-    AudioNullCodec, AudioCopyCodec, VorbisCodec, AacCodec, Mp3Codec, Mp2Codec
+    AudioNullCodec, AudioCopyCodec, VorbisCodec, AacCodec, Mp3Codec, Mp2Codec,
+    FdkAacCodec
 ]
 
 video_codec_list = [
