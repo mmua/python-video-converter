@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 class FFMpegError(Exception):
     pass
 
+class FFMpegTimeoutError(Exception):
+    pass
 
 class FFMpegConvertError(Exception):
     def __init__(self, message, cmd, output, details=None):
@@ -424,7 +426,8 @@ class FFMpeg(object):
         if timeout:
             def on_sigalrm(*_):
                 signal.signal(signal.SIGALRM, signal.SIG_DFL)
-                raise Exception('timed out while waiting for ffmpeg')
+                # kill process
+                raise FFMpegTimeoutError('timed out while waiting for ffmpeg')
 
             signal.signal(signal.SIGALRM, on_sigalrm)
 
@@ -441,7 +444,11 @@ class FFMpeg(object):
             if timeout:
                 signal.alarm(timeout)
 
-            ret = p.stderr.read(10)
+            try:
+                ret = p.stderr.read(10)
+            except FFMpegTimeoutError, e:
+                p.kill()
+                raise e
 
             if timeout:
                 signal.alarm(0)
