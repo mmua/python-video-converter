@@ -187,6 +187,12 @@ class Converter(object):
                                                 timeout=timeout):
                 yield int((100.0 * timecode) / info.format.duration)
 
+    def stop(self):
+        if self.ffmpeg.process is not None:
+            self.ffmpeg.process.kill()
+            return True
+        return False
+
     def probe(self, fname, posters_as_video=True):
         """
         Examine the media file. See the documentation of

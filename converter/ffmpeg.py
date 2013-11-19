@@ -319,6 +319,7 @@ class FFMpeg(object):
         Initialize a new FFMpeg wrapper object. Optional parameters specify
         the paths to ffmpeg and ffprobe utilities.
         """
+        self.process = None
 
         def which(name):
             path = os.environ.get('PATH', os.defpath)
@@ -433,6 +434,7 @@ class FFMpeg(object):
 
         try:
             p = self._spawn(cmds)
+            self.process = p
         except OSError:
             raise FFMpegError('Error while calling ffmpeg binary')
 
@@ -448,6 +450,7 @@ class FFMpeg(object):
                 ret = p.stderr.read(10)
             except FFMpegTimeoutError, e:
                 p.kill()
+                self.process = None
                 raise e
 
             if timeout:
@@ -477,6 +480,7 @@ class FFMpeg(object):
             signal.signal(signal.SIGALRM, signal.SIG_DFL)
 
         p.communicate()  # wait for process to exit
+        self.process = None
 
         if total_output == '':
             raise FFMpegError('Error while calling ffmpeg binary')
