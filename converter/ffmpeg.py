@@ -355,6 +355,11 @@ class FFMpeg(object):
         return Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
                      close_fds=True)
 
+    def stop(self):
+        if self.process:
+            self.process.kill()
+            self.process = None
+
     def probe(self, fname, posters_as_video=True):
         """
         Examine the media file and determine its format and media streams.
