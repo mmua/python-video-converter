@@ -425,7 +425,7 @@ class FFMpeg(object):
         if not os.path.exists(infile):
             raise FFMpegError("Input file doesn't exist: " + infile)
 
-        cmds = [self.ffmpeg_path, '-i', infile]
+        cmds = [self.ffmpeg_path, '-threads', '1', '-i', infile]
         cmds.extend(opts)
         cmds.extend(['-y', outfile])
 
