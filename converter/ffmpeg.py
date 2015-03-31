@@ -72,9 +72,15 @@ class MediaFormatInfo(object):
         elif key == 'format_long_name':
             self.fullname = val
         elif key == 'bit_rate':
-            self.bitrate = float(val)
+            try:
+                self.bitrate = float(val)
+            except:
+                self.bitrate = None
         elif key == 'duration':
-            self.duration = float(val)
+            try:
+                self.duration = float(val)
+            except:
+                self.duration = None
         elif key == 'size':
             self.size = float(val)
 
